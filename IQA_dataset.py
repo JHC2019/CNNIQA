@@ -8,10 +8,10 @@ from scipy.signal import convolve2d
 from torch.utils.data import Dataset
 from torchvision.transforms.functional import to_tensor
 
-def default_loader(path, flag):
-    if flag == 1:
+def default_loader(path, is_gray):
+    if is_gray:
         return Image.open(path).convert('L')
-    elif flag == 3:
+    else:
         return Image.open(path).convert('RGB')
 
 def get_data_loaders(config, train_batch_size, exp_id=0):
@@ -75,9 +75,7 @@ class IQADataset(Dataset):
         self.label = []
         self.label_std = []
         for idx in range(len(self.index)):
-            # print("Preprocessing Image: {}".format(im_names[idx]))
-            im = self.loader(os.path.join(im_dir, im_names[idx]), config['flag'])
-
+            im = self.loader(os.path.join(im_dir, im_names[idx]), config['is_gray'])
             patches = NonOverlappingCropPatches(config, im, self.patch_size, self.stride)
             if status == 'train':
                 self.patches = self.patches + patches
@@ -109,13 +107,13 @@ def NonOverlappingCropPatches(config, im, patch_size=32, stride=32):
 
 def LocalNormalization(config, patch, P=3, Q=3, C=1):
     kernel = np.ones((P, Q)) / (P * Q)
-    if config['flag'] == 1:
+    if config['is_gray']:
         patch = patch[0].numpy()
         patch_mean = convolve2d(patch, kernel, boundary='symm', mode='same')
         patch_sm = convolve2d(np.square(patch), kernel, boundary='symm', mode='same')
         patch_std = np.sqrt(np.maximum(patch_sm - np.square(patch_mean), 0)) + C
         patch_ln = torch.from_numpy((patch - patch_mean) / patch_std).float().unsqueeze(0)
-    elif config['flag'] == 3:
+    else:
         patch = patch.numpy()
         tmp = np.zeros_like(patch)
         for i in range(3):

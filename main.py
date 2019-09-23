@@ -145,7 +145,7 @@ if __name__ == "__main__":
     parser = ArgumentParser(description='PyTorch CNNIQA')
     parser.add_argument('--batch_size', type=int, default=128,
                         help='input batch size for training (default: 128)')
-    parser.add_argument('--epochs', type=int, default=20,
+    parser.add_argument('--epochs', type=int, default=100,
                         help='number of epochs to train (default: 500)')
     parser.add_argument('--lr', type=float, default=0.001,
                         help='learning rate (default: 0.001)')
@@ -159,14 +159,10 @@ if __name__ == "__main__":
                         help='database name (default: LIVE)')
     parser.add_argument('--model', default='CNNIQA', type=str,
                         help='model name (default: CNNIQA)')
-    # parser.add_argument('--resume', default=None, type=str,
-    #                     help='path to latest checkpoint (default: None)')
     parser.add_argument("--log_dir", type=str, default="tensorboard_logs",
                         help="log directory for Tensorboard log output")
     parser.add_argument('--disable_gpu', action='store_true',
                         help='flag whether to disable GPU')
-    # parser.add_argument('--multi_gpu', action='store_true',
-    #                     help='flag whether to use multiple GPUs')
 
     args = parser.parse_args()
 
@@ -175,7 +171,7 @@ if __name__ == "__main__":
     print('exp id: ' + args.exp_id)
     print('database: ' + args.database)
     print('model: ' + args.model)
-    print('flag: ' + str(config['flag']))
+    print('is_gray: ' + str(config['is_gray']))
     config.update(config[args.database])
     # config.update(config[args.model])
 
