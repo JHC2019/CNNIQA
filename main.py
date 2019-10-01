@@ -43,7 +43,7 @@ def run(train_batch_size, epochs, lr, weight_decay, config, exp_id, log_dir, tra
 
     with open(save_result_file + '.csv', 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['type', 'epoch', 'SROCC', 'KROCC', 'PLCC', 'RMSE',' OR'])
+        writer.writerow(['type', 'epoch', 'SROCC', 'KROCC', 'PLCC', 'RMSE'])
 
     for epoch in tqdm(range(epochs)):
         # train
@@ -52,10 +52,10 @@ def run(train_batch_size, epochs, lr, weight_decay, config, exp_id, log_dir, tra
         for i, (inputs, targets) in enumerate(train_loader, 0):
             optimizer.zero_grad()
             inputs = inputs.to(device)
-            targets = [i.to(device) for i in targets]
+            targets = targets.to(device)
 
             outputs = model(inputs)
-            loss = loss_fn(outputs, targets[0])
+            loss = loss_fn(outputs, targets)
             loss.backward()
             optimizer.step()
 
@@ -70,26 +70,24 @@ def run(train_batch_size, epochs, lr, weight_decay, config, exp_id, log_dir, tra
         L = 0
         q = []
         sq = []
-        sq_std = []
         with torch.no_grad():
             for i, (inputs, targets) in enumerate(val_loader, 0):
                 inputs = inputs.squeeze(0).to(device)
-                targets = [i.to(device) for i in targets]
+                targets = targets.to(device)
 
                 outputs = model(inputs)
-                loss = loss_fn(torch.mean(outputs, 0, keepdim=True), targets[0])
+                loss = loss_fn(torch.mean(outputs, 0, keepdim=True), targets)
                 L += loss.item()
 
                 q.append(torch.mean(outputs).cpu().numpy())
-                sq.append(targets[0].squeeze().cpu().numpy())
-                sq_std.append(targets[1].squeeze().cpu().numpy())
+                sq.append(targets.squeeze().cpu().numpy())
         val_loss = L / (i + 1)
-        measure_values = measure(sq, q, sq_std)
-        SROCC, KROCC, PLCC, RMSE, OR = measure_values
+        measure_values = measure(sq, q)
+        SROCC, KROCC, PLCC, RMSE = measure_values
         writer_val.add_scalar("Loss", val_loss, epoch)
         print("{:10} Loss: {:.4f} ".format('Validation', val_loss))
-        print("{:10} Results - SROCC: {:.4f} KROCC: {:.4f} PLCC: {:.4f} RMSE: {:.4f} OR: {:.2f}%"
-              .format('Validation', SROCC, KROCC, PLCC, RMSE, 100 * OR))
+        print("{:10} Results - SROCC: {:.4f} KROCC: {:.4f} PLCC: {:.4f} RMSE: {:.4f}"
+              .format('Validation', SROCC, KROCC, PLCC, RMSE))
         tb_write(writer_val, measure_values, epoch)
 
         if SROCC > best_criterion_val:
@@ -99,33 +97,31 @@ def run(train_batch_size, epochs, lr, weight_decay, config, exp_id, log_dir, tra
 
             with open(save_result_file + '.csv', 'a+', newline='') as f:
                 writer = csv.writer(f)
-                writer.writerow(['val', best_epoch_val, SROCC, KROCC, PLCC, RMSE, OR*100])
+                writer.writerow(['val', best_epoch_val, SROCC, KROCC, PLCC, RMSE])
 
         # test
         if config['test_ratio'] > 0 and config['test_during_training']:
             L = 0
             q = []
             sq = []
-            sq_std = []
             with torch.no_grad():
                 for i, (inputs, targets) in enumerate(test_loader, 0):
                     inputs = inputs.squeeze(0).to(device)
-                    targets = [i.to(device) for i in targets]
+                    targets = targets.to(device)
 
                     outputs = model(inputs)
-                    loss = loss_fn(torch.mean(outputs, 0, keepdim=True), targets[0])
+                    loss = loss_fn(torch.mean(outputs, 0, keepdim=True), targets)
                     L += loss.item()
 
                     q.append(torch.mean(outputs).cpu().numpy())
-                    sq.append(targets[0].squeeze().cpu().numpy())
-                    sq_std.append(targets[1].squeeze().cpu().numpy())
+                    sq.append(targets.squeeze().cpu().numpy())
             test_loss = L / (i + 1)
-            measure_values = measure(sq, q, sq_std)
-            SROCC, KROCC, PLCC, RMSE, OR = measure_values
+            measure_values = measure(sq, q)
+            SROCC, KROCC, PLCC, RMSE = measure_values
             writer_test.add_scalar("Loss", test_loss, epoch)
             print("{:10} Loss: {:.4f} ".format('Test', test_loss))
-            print("{:10} Results - SROCC: {:.4f} KROCC: {:.4f} PLCC: {:.4f} RMSE: {:.4f} OR: {:.2f}%"
-              .format('Test', SROCC, KROCC, PLCC, RMSE, 100 * OR))
+            print("{:10} Results - SROCC: {:.4f} KROCC: {:.4f} PLCC: {:.4f} RMSE: {:.4f}"
+              .format('Test', SROCC, KROCC, PLCC, RMSE))
             tb_write(writer_test, measure_values, epoch)
 
             if SROCC > best_criterion_test:
@@ -135,7 +131,7 @@ def run(train_batch_size, epochs, lr, weight_decay, config, exp_id, log_dir, tra
 
                 with open(save_result_file + '.csv', 'a+', newline='') as f:
                     writer = csv.writer(f)
-                    writer.writerow(['test', best_epoch_test, SROCC, KROCC, PLCC, RMSE, OR*100])
+                    writer.writerow(['test', best_epoch_test, SROCC, KROCC, PLCC, RMSE])
     writer_train.close()
     writer_val.close()
     writer_test.close()

@@ -67,13 +67,11 @@ class IQADataset(Dataset):
             print("# Val Images: {}".format(len(self.index)))
 
         self.mos = Info['subjective_scores'][0, self.index]
-        self.mos_std = Info['subjective_scoresSTD'][0, self.index]
         im_names = [Info[Info['im_names'][0, :][i]][()].tobytes()\
                         [::2].decode() for i in self.index]
 
         self.patches = ()
         self.label = []
-        self.label_std = []
         for idx in range(len(self.index)):
             im = self.loader(os.path.join(im_dir, im_names[idx]), config['is_gray'])
             patches = NonOverlappingCropPatches(config, im, self.patch_size, self.stride)
@@ -81,18 +79,16 @@ class IQADataset(Dataset):
                 self.patches = self.patches + patches
                 for i in range(len(patches)):
                     self.label.append(self.mos[idx])
-                    self.label_std.append(self.mos_std[idx])
             else:
                 self.patches = self.patches + (torch.stack(patches), )
                 self.label.append(self.mos[idx])
-                self.label_std.append(self.mos_std[idx])
 
     def __len__(self):
         return len(self.patches)
 
     def __getitem__(self, idx):
-        return (self.patches[idx], (torch.Tensor([self.label[idx],]),
-                torch.Tensor([self.label_std[idx],])))
+        return (self.patches[idx], torch.Tensor([self.label[idx],]))
+
 
 def NonOverlappingCropPatches(config, im, patch_size=32, stride=32):
     w, h = im.size
