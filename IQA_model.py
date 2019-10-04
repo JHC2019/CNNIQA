@@ -14,6 +14,7 @@ class CNNIQAnet(nn.Module):
         self.fc1    = nn.Linear(2 * 50, 800)
         self.fc2    = nn.Linear(800, 800)
         self.fc3    = nn.Linear(800, 1)
+        self.dropout = nn.Dropout(p=0.5)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -39,7 +40,7 @@ class CNNIQAnet(nn.Module):
         h  = h.squeeze(3).squeeze(2)
 
         h  = F.relu(self.fc1(h))
-        h  = F.dropout(h)
+        h  = self.dropout(h)
         h  = F.relu(self.fc2(h))
 
         q  = self.fc3(h)

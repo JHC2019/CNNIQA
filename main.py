@@ -36,14 +36,8 @@ def run(train_batch_size, epochs, lr, weight_decay, config, exp_id, log_dir, tra
     writer_val = SummaryWriter(log_dir=log_dir+'/val')
     writer_test = SummaryWriter(log_dir=log_dir+'/test')
 
-    best_criterion_val = -1
-    best_criterion_test = -1
-    best_epoch_val = 0
-    best_epoch_test = 0
-
-    with open(save_result_file + '.csv', 'w', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow(['type', 'epoch', 'SROCC', 'KROCC', 'PLCC', 'RMSE'])
+    best_criterion = -1
+    best_epoch = 0
 
     for epoch in tqdm(range(epochs)):
         # train
@@ -90,16 +84,8 @@ def run(train_batch_size, epochs, lr, weight_decay, config, exp_id, log_dir, tra
               .format('Validation', SROCC, KROCC, PLCC, RMSE))
         tb_write(writer_val, measure_values, epoch)
 
-        if SROCC > best_criterion_val:
-            best_criterion_val = SROCC
-            best_epoch_val = epoch
-            torch.save(model.state_dict(), trained_model_file + '-val')
-
-            with open(save_result_file + '.csv', 'a+', newline='') as f:
-                writer = csv.writer(f)
-                writer.writerow(['val', best_epoch_val, SROCC, KROCC, PLCC, RMSE])
-
         # test
+        model.eval()
         if config['test_ratio'] > 0 and config['test_during_training']:
             L = 0
             q = []
@@ -124,24 +110,47 @@ def run(train_batch_size, epochs, lr, weight_decay, config, exp_id, log_dir, tra
               .format('Test', SROCC, KROCC, PLCC, RMSE))
             tb_write(writer_test, measure_values, epoch)
 
-            if SROCC > best_criterion_test:
-                best_criterion_test = SROCC
-                best_epoch_test = epoch
-                torch.save(model.state_dict(), trained_model_file + '-test')
-
-                with open(save_result_file + '.csv', 'a+', newline='') as f:
-                    writer = csv.writer(f)
-                    writer.writerow(['test', best_epoch_test, SROCC, KROCC, PLCC, RMSE])
+            if SROCC > best_criterion:
+                best_criterion = SROCC
+                best_epoch = epoch
+                torch.save(model.state_dict(), trained_model_file)
     writer_train.close()
     writer_val.close()
     writer_test.close()
+
+    # Record Every Times
+    if config['test_ratio'] > 0:
+        model.load_state_dict(torch.load(trained_model_file))
+        for parameter in model.parameters():
+            parameter.requires_grad = False
+
+        model.eval()
+        q = []
+        sq = []
+        with torch.no_grad():
+            for i, (inputs, targets) in enumerate(test_loader, 0):
+                inputs = inputs.squeeze(0).to(device)
+                targets = targets.to(device)
+
+                outputs = model(inputs)
+
+                q.append(torch.mean(outputs).cpu().numpy())
+                sq.append(targets.squeeze().cpu().numpy())
+
+            measure_values = measure(sq, q)
+            SROCC, KROCC, PLCC, RMSE = measure_values
+            print("{:10} Results - Epoch: {:.4f} SROCC: {:.4f} KROCC: {:.4f} PLCC: {:.4f} RMSE: {:.4f}"
+                    .format('Best Test', best_epoch, SROCC, KROCC, PLCC, RMSE))
+            with open(save_result_file + '.csv', 'a+', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow([exp_id, best_epoch, SROCC, KROCC, PLCC, RMSE])
 
 
 if __name__ == "__main__":
     parser = ArgumentParser(description='PyTorch CNNIQA')
     parser.add_argument('--batch_size', type=int, default=128,
                         help='input batch size for training (default: 128)')
-    parser.add_argument('--epochs', type=int, default=100,
+    parser.add_argument('--epochs', type=int, default=10,
                         help='number of epochs to train (default: 500)')
     parser.add_argument('--lr', type=float, default=0.001,
                         help='learning rate (default: 0.001)')
@@ -162,6 +171,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    seed_torch()
+
     with open(args.config) as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
     print('exp id: ' + args.exp_id)
@@ -175,7 +186,7 @@ if __name__ == "__main__":
     ensure_dir('checkpoints')
     trained_model_file = 'checkpoints/{}-{}-EXP{}-lr={}'.format(args.model, args.database, args.exp_id, args.lr)
     ensure_dir('results')
-    save_result_file = 'results/{}-{}-EXP{}-lr={}'.format(args.model, args.database, args.exp_id, args.lr)
+    save_result_file = 'results/{}-{}-lr={}'.format(args.model, args.database, args.lr)
 
     run(args.batch_size, args.epochs, args.lr, args.weight_decay, config, args.exp_id,
         log_dir, trained_model_file, save_result_file, args.disable_gpu)
